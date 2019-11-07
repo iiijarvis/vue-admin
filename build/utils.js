@@ -3,6 +3,75 @@ const path = require('path')
 const config = require('../config')
 const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const packageConfig = require('../package.json')
+const fs = require('fs')
+const merge = require('webpack-merge')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const chalk = require('chalk')
+const PAGE_PATH = path.resolve(__dirname, '../src/module')
+const PAGES_NAME = getPagesName()
+
+function getPagesName () {
+  let arr = [];
+  arr = fs.readdirSync(PAGE_PATH)
+  for (let i = 0; i < arr.length; i++) {
+    let stats = fs.statSync(path.join(PAGE_PATH, arr[i]))
+    if (!stats.isDirectory()) {
+      arr.splice(i, 1)
+    }
+  }
+
+  for (let i = 0; i < arr.length; i++) {
+    try {
+      fs.accessSync(path.join(PAGE_PATH, arr[i], arr[i] + '.html'))
+      fs.accessSync(path.join(PAGE_PATH, arr[i], arr[i] + '.js'))
+    } catch (error) {
+      arr.splice(i, 1)
+    }
+  }
+
+  return arr;
+}
+
+// 多入口配置
+exports.entries = function () {
+  let map = {}
+  PAGES_NAME.forEach(function (pageName) {
+    map[pageName] = path.join(PAGE_PATH, pageName, pageName + '.js')
+  })
+  console.log(chalk.yellow("\n entry \n"))
+  console.log(map)
+  return map
+}
+
+// 多页面输出配置
+exports.htmlPlugin = function () {
+  let arr = []
+  PAGES_NAME.forEach(function (pageName) {
+    let conf = {
+      filename: pageName + '.html',
+      template: path.join(PAGE_PATH, pageName, pageName + '.html'),
+      chunks: [pageName],
+      inject: true
+    }
+    if (process.env.NODE_ENV === 'production') {
+      conf = merge(conf, {
+        chunks: ['manifest', 'vendor', pageName],
+        minify: {
+          removeComments: true,
+          collapseWhitespace: true,
+          removeAttributeQuotes: true
+        },
+        chunksSortMode: 'dependency'
+      })
+    }
+
+    arr.push(new HtmlWebpackPlugin(conf))
+  })
+
+  console.log(chalk.yellow("\n entryHtml \n"))
+  console.log(arr)
+  return arr
+}
 
 exports.assetsPath = function (_path) {
   const assetsSubDirectory = process.env.NODE_ENV === 'production'
